@@ -255,22 +255,52 @@ class UniversalPriceTracker:
         if len(self.price_history[product_id]) > 100:
             self.price_history[product_id] = self.price_history[product_id][-100:]
         
-        # Check threshold - ONLY if notifications enabled for THIS product
+        # Smart notification logic
         threshold = product.get('threshold', 0)
         if threshold > 0 and price < threshold:
-            if product_notifications and self.notifications_enabled:
+            should_notify = False
+            notification_reason = ""
+            
+            # Get previous prices
+            history = self.price_history[product_id]
+            if len(history) >= 2:
+                prev_price = history[-2]['price']
+                
+                # Scenario 1: First time dropping below threshold
+                if prev_price >= threshold:
+                    should_notify = True
+                    notification_reason = "FIRST DROP BELOW THRESHOLD"
+                    print(f"   🚨 ALERT: Price just dropped below threshold!")
+                
+                # Scenario 2: ANY price drop below threshold
+                elif prev_price < threshold and price < prev_price:
+                    should_notify = True
+                    price_drop = prev_price - price
+                    price_drop_pct = (price_drop / prev_price) * 100
+                
+            else:
+                # First check ever
+                should_notify = True
+                notification_reason = "INITIAL CHECK - BELOW THRESHOLD"
+                print(f"   🚨 ALERT: First check shows price below threshold!")
+            
+            # Send notification if needed
+            if should_notify and product_notifications and self.notifications_enabled:
+                savings = threshold - price
                 message = (
                     f"🎉 PRICE DROP ALERT!\n\n"
                     f"{product['name']}\n"
                     f"Current: ₹{price}\n"
                     f"Threshold: ₹{threshold}\n"
-                    f"Savings: ₹{threshold - price}\n\n"
+                    f"Savings: ₹{savings:.2f}\n"
+                    f"Reason: {notification_reason}\n\n"
                     f"Buy now: {product['url']}"
                 )
-                print(f"   🚨 ALERT: Price below threshold!")
                 self.send_notification(message, f"Price Alert: {product['name']}")
-            else:
-                print(f"   🔕 Price below threshold but notifications OFF for this product")
+            elif not should_notify:
+                print(f"   🔕 No notification: Price still low but no significant change")
+            elif not product_notifications or not self.notifications_enabled:
+                print(f"   🔕 Price below threshold but notifications OFF")
         elif price < threshold:
             print(f"   ✅ Price is below threshold (₹{threshold})")
         else:
