@@ -9,7 +9,15 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
-import plotly.graph_objects as go
+
+# Make plotly optional
+try:
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("⚠️ Plotly not installed. Charts will be disabled. Install with: pip install plotly")
+
 from price_tracker_universal import UniversalPriceTracker
 import time
 
@@ -341,38 +349,43 @@ elif page == "📈 Price History":
             df = pd.DataFrame(history)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             
-            fig = go.Figure()
-            
-            # Price line
-            fig.add_trace(go.Scatter(
-                x=df['timestamp'],
-                y=df['price'],
-                mode='lines+markers',
-                name='Price',
-                line=dict(color='#667eea', width=3),
-                marker=dict(size=8)
-            ))
-            
-            # Threshold line
-            threshold = product.get('threshold', 0)
-            if threshold > 0:
-                fig.add_hline(
-                    y=threshold,
-                    line_dash="dash",
-                    line_color="red",
-                    annotation_text=f"Your Threshold: ₹{threshold}",
-                    annotation_position="right"
+            if PLOTLY_AVAILABLE:
+                fig = go.Figure()
+                
+                # Price line
+                fig.add_trace(go.Scatter(
+                    x=df['timestamp'],
+                    y=df['price'],
+                    mode='lines+markers',
+                    name='Price',
+                    line=dict(color='#667eea', width=3),
+                    marker=dict(size=8)
+                ))
+                
+                # Threshold line
+                threshold = product.get('threshold', 0)
+                if threshold > 0:
+                    fig.add_hline(
+                        y=threshold,
+                        line_dash="dash",
+                        line_color="red",
+                        annotation_text=f"Your Threshold: ₹{threshold}",
+                        annotation_position="right"
+                    )
+                
+                fig.update_layout(
+                    title="Price Over Time",
+                    xaxis_title="Date",
+                    yaxis_title="Price (₹)",
+                    hovermode='x unified',
+                    height=500
                 )
-            
-            fig.update_layout(
-                title="Price Over Time",
-                xaxis_title="Date",
-                yaxis_title="Price (₹)",
-                hovermode='x unified',
-                height=500
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                # Fallback: Simple line chart using Streamlit's built-in
+                st.line_chart(df.set_index('timestamp')['price'])
+                st.caption("Install plotly for interactive charts: pip install plotly")
             
             # Price history table
             st.markdown("### 📋 Detailed History")
