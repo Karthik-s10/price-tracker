@@ -4,6 +4,7 @@ setup(
     name="price-tracker",
     version="1.0.0",
     packages=find_packages(),
+    py_modules=["streamlit_app"],
     install_requires=[
         "streamlit>=1.28.0",
         "requests>=2.31.0",
@@ -13,9 +14,4 @@ setup(
         "plotly>=5.17.0",
         "lxml>=4.9.0"
     ],
-    entry_points={
-        'console_scripts': [
-            'price-tracker=streamlit_app:main',
-        ],
-    },
 )
