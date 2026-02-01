@@ -9,6 +9,8 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
+import requests
+import base64
 
 # Make plotly optional
 try:
@@ -294,10 +296,18 @@ elif page == "➕ Add Product":
                 # Push to GitHub via API
                 try:
                     token = os.getenv('GITHUB_TOKEN')
+                    if not token:
+                        st.warning("⚠️ GITHUB_TOKEN not found in environment variables")
+                        raise Exception("GitHub token missing")
+                    
                     url = 'https://api.github.com/repos/Karthik-s10/price-tracker/contents/price_tracker_config.json'
                     
                     # Get current file SHA
                     r = requests.get(url, headers={'Authorization': f'token {token}'})
+                    if r.status_code != 200:
+                        st.error(f"❌ Failed to get current file: {r.status_code} - {r.text}")
+                        raise Exception(f"GitHub API error: {r.status_code}")
+                    
                     sha = r.json()['sha']
                     
                     # Update file
@@ -306,10 +316,16 @@ elif page == "➕ Add Product":
                         'content': base64.b64encode(content.encode()).decode(),
                         'sha': sha
                     }
-                    requests.put(url, json=data, headers={'Authorization': f'token {token}'})
-                    st.success("✅ Synced to GitHub!")
-                except:
-                    st.warning("Failed to sync")
+                    r = requests.put(url, json=data, headers={'Authorization': f'token {token}'})
+                    if r.status_code == 200:
+                        st.success("✅ Synced to GitHub!")
+                    else:
+                        st.error(f"❌ Failed to update GitHub: {r.status_code} - {r.text}")
+                        raise Exception(f"GitHub update failed: {r.status_code}")
+                        
+                except Exception as e:
+                    st.error(f"❌ GitHub sync failed: {str(e)}")
+                    st.info("💡 You may need to add products manually via GitHub for now")
                 
                 st.success(f"✅ Added: {name}")
                 st.balloons()
