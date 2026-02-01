@@ -50,10 +50,8 @@ def pull_latest_config_from_github():
 
 @st.cache_resource
 def get_tracker():
-    return UniversalPriceTracker(
-        config_file=os.getenv('CONFIG_FILE', 'price_tracker_config.json'),
-        pushbullet_token=os.getenv('PUSHBULLET_TOKEN', '')
-    )
+    tracker = UniversalPriceTracker()
+    return tracker
 
 def main():
     # Page config
