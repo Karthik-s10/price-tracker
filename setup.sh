@@ -9,9 +9,6 @@ pip install -r requirements.txt
 # Create necessary directories
 mkdir -p .streamlit
 
-# Run the Streamlit app
-streamlit run streamlit_app.py
-
 # Create a default config.toml if it doesn't exist
 if [ ! -f .streamlit/config.toml ]; then
     cat > .streamlit/config.toml << EOL
@@ -29,3 +26,6 @@ textColor = "#fafafa"
 font = "sans serif"
 EOL
 fi
+
+# Run the Streamlit app
+streamlit run streamlit_app.py

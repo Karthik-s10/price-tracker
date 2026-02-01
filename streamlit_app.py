@@ -18,7 +18,6 @@ try:
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
-    st.warning("⚠️ Plotly not installed. Charts will be disabled. Install with: pip install plotly")
 
 from price_tracker_universal import UniversalPriceTracker
 import time
