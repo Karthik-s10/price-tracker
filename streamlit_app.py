@@ -287,6 +287,29 @@ elif page == "➕ Add Product":
                 
                 tracker.products.append(new_product)
                 tracker.save_config()
+                # Get config content
+                with open('price_tracker_config.json', 'r') as f:
+                    content = f.read()
+                
+                # Push to GitHub via API
+                try:
+                    token = os.getenv('GITHUB_TOKEN')
+                    url = 'https://api.github.com/repos/Karthik-s10/price-tracker/contents/price_tracker_config.json'
+                    
+                    # Get current file SHA
+                    r = requests.get(url, headers={'Authorization': f'token {token}'})
+                    sha = r.json()['sha']
+                    
+                    # Update file
+                    data = {
+                        'message': 'Update from dashboard',
+                        'content': base64.b64encode(content.encode()).decode(),
+                        'sha': sha
+                    }
+                    requests.put(url, json=data, headers={'Authorization': f'token {token}'})
+                    st.success("✅ Synced to GitHub!")
+                except:
+                    st.warning("Failed to sync")
                 
                 st.success(f"✅ Added: {name}")
                 st.balloons()
