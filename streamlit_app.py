@@ -48,6 +48,13 @@ def pull_latest_config_from_github():
     except Exception as e:
         return False, str(e)
 
+@st.cache_resource
+def get_tracker():
+    return UniversalPriceTracker(
+        config_file=os.getenv('CONFIG_FILE', 'price_tracker_config.json'),
+        pushbullet_token=os.getenv('PUSHBULLET_TOKEN', '')
+    )
+
 def main():
     # Page config
     st.set_page_config(
@@ -101,14 +108,7 @@ def main():
     from dotenv import load_dotenv
     load_dotenv()
 
-    # Initialize tracker with environment variables
-    @st.cache_resource
-    def get_tracker():
-        return UniversalPriceTracker(
-            config_file=os.getenv('CONFIG_FILE', 'price_tracker_config.json'),
-            pushbullet_token=os.getenv('PUSHBULLET_TOKEN', '')
-        )
-
+    # Initialize tracker
     tracker = get_tracker()
 
     # Sidebar
