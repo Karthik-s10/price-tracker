@@ -1,10 +1,16 @@
 #!/bin/bash
 
-# Install Python dependencies
+# Install the package in development mode
+pip install -e .
+
+# Install dependencies
 pip install -r requirements.txt
 
 # Create necessary directories
 mkdir -p .streamlit
+
+# Run the Streamlit app
+streamlit run streamlit_app.py
 
 # Create a default config.toml if it doesn't exist
 if [ ! -f .streamlit/config.toml ]; then

@@ -1,1 +1,1 @@
-web: sh setup.sh
+web: chmod +x setup.sh && ./setup.sh
