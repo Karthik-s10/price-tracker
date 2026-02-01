@@ -97,10 +97,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize tracker
+# Load environment variables from .env file if it exists
+from dotenv import load_dotenv
+load_dotenv()
+
+# Initialize tracker with environment variables
 @st.cache_resource
 def get_tracker():
-    return UniversalPriceTracker()
+    return UniversalPriceTracker(
+        config_file=os.getenv('CONFIG_FILE', 'price_tracker_config.json'),
+        pushbullet_token=os.getenv('PUSHBULLET_TOKEN', '')
+    )
 
 tracker = get_tracker()
 
@@ -111,15 +118,26 @@ with st.sidebar:
     # Pushbullet status
     if tracker.pushbullet_token:
         st.success("✅ Pushbullet Connected")
+        if st.button("🔑 Change Pushbullet Token", key="change_pb_token"):
+            new_token = st.text_input("Enter new Pushbullet Token", type="password")
+            if new_token:
+                os.environ['PUSHBULLET_TOKEN'] = new_token
+                st.cache_resource.clear()
+                st.rerun()
     else:
         st.warning("⚠️ Pushbullet Not Configured")
         with st.expander("How to setup Pushbullet"):
             st.markdown("""
             1. Install Pushbullet app on phone
             2. Get token from https://www.pushbullet.com/#settings/account
-            3. Set environment variable:
+            3. Create a `.env` file in the project root with:
+            ```
+            PUSHBULLET_TOKEN=your_token_here
+            ```
+            Or set it as an environment variable before running the app:
             ```bash
             export PUSHBULLET_TOKEN="your-token"
+            streamlit run streamlit_app.py
             ```
             """)
     
@@ -130,6 +148,20 @@ with st.sidebar:
         "Navigate",
         ["📊 Dashboard", "➕ Add Product", "📈 Price History", "⚙️ Settings"]
     )
+    
+    st.markdown("---")
+    
+    # Pincode Input
+    st.markdown("### 📍 Delivery Pincode")
+    pincode = st.text_input("Enter your pincode", value=tracker.pincode or "", max_chars=6, key="pincode_input")
+    
+    # Update pincode if changed
+    if pincode and pincode != tracker.pincode:
+        tracker.pincode = pincode
+        tracker.save_config()
+        st.success(f"✅ Pincode updated to {pincode}")
+        st.cache_resource.clear()
+        st.rerun()
     
     st.markdown("---")
     
@@ -152,6 +184,12 @@ if page == "📊 Dashboard":
         st.info("👋 Welcome! Add your first product to start tracking prices.")
         st.markdown("Click **➕ Add Product** in the sidebar to get started.")
     else:
+        # Pincode status
+        if not tracker.pincode:
+            st.warning("⚠️ Please set your delivery pincode in the sidebar for accurate pricing")
+        else:
+            st.info(f"📍 Prices will be shown for pincode: **{tracker.pincode}**")
+        
         # Action buttons
         col1, col2, col3 = st.columns(3)
         
@@ -276,9 +314,17 @@ elif page == "➕ Add Product":
     
     st.markdown("""
     Track any product from **any e-commerce website**! Just paste the product URL below.
+    The app will automatically detect the price and start tracking it.
     
-    ✅ Amazon | ✅ Flipkart | ✅ Myntra | ✅ Nykaa | ✅ BigBasket | ✅ Zepto | ✅ Any other site!
+    ### Supported Websites:
+    - **General**: Amazon, Flipkart, Myntra, etc.
+    - **Pincode-based**: BigBasket, Zepto, Blinkit (set pincode in sidebar)
+    
+    For best results with pincode-based services, make sure to set your delivery pincode in the sidebar first.
     """)
+    
+    if not tracker.pincode:
+        st.warning("⚠️ Please set your delivery pincode in the sidebar for accurate pricing on BigBasket, Zepto, and Blinkit")
     
     with st.form("add_product_form"):
         st.markdown("### Product Details")

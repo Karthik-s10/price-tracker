@@ -13,14 +13,27 @@ from datetime import datetime
 from typing import Optional, Dict, List
 
 class UniversalPriceTracker:
-    def __init__(self, config_file='price_tracker_config.json'):
-        self.config_file = config_file
+    def __init__(self, config_file='price_tracker_config.json', pushbullet_token=None):
+        self.config_file = os.path.expanduser(config_file)  # Allow ~/ paths
         self.products = []
         self.price_history = {}
         self.notifications_enabled = True
-        self.load_config()
+        self.pincode = None
+        self.pushbullet_token = pushbullet_token or os.getenv('PUSHBULLET_TOKEN', '')
         
-        self.pushbullet_token = os.getenv('PUSHBULLET_TOKEN', '')
+        # Create config directory if it doesn't exist
+        config_dir = os.path.dirname(os.path.abspath(self.config_file))
+        if config_dir and not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+            
+        # Set restrictive permissions on config directory
+        if os.name != 'nt':  # Skip on Windows
+            try:
+                os.chmod(config_dir, 0o700)
+            except Exception as e:
+                print(f"Warning: Could not set permissions on {config_dir}: {e}")
+        
+        self.load_config()
         
         # Common price selectors for e-commerce sites
         self.price_selectors = [
@@ -51,23 +64,47 @@ class UniversalPriceTracker:
     def load_config(self):
         """Load configuration from file"""
         if os.path.exists(self.config_file):
-            with open(self.config_file, 'r') as f:
+            with open(self.config_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.products = data.get('products', [])
                 self.price_history = data.get('price_history', {})
                 self.notifications_enabled = data.get('notifications_enabled', True)
+                self.pincode = data.get('pincode')  # Load saved pincode
         else:
             self.save_config()
     
     def save_config(self):
-        """Save configuration to file"""
+        """Save configuration to file with secure permissions"""
         data = {
             'products': self.products,
             'price_history': self.price_history,
-            'notifications_enabled': self.notifications_enabled
+            'notifications_enabled': self.notifications_enabled,
+            'pincode': self.pincode
         }
-        with open(self.config_file, 'w') as f:
-            json.dump(data, f, indent=2)
+        
+        # Create a temporary file first
+        temp_file = f"{self.config_file}.tmp"
+        
+        try:
+            # Write to temporary file
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            # On Unix-like systems, set restrictive permissions (0o600 = owner read/write only)
+            if os.name != 'nt':  # Skip on Windows
+                os.chmod(temp_file, 0o600)
+                
+            # Replace the old file with the new one
+            if os.path.exists(self.config_file):
+                os.replace(temp_file, self.config_file)
+            else:
+                os.rename(temp_file, self.config_file)
+                
+        except Exception as e:
+            # Clean up temp file if something went wrong
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            raise Exception(f"Failed to save config: {str(e)}")
     
     def extract_price_from_text(self, text: str) -> Optional[float]:
         """Extract price from text string"""
@@ -87,6 +124,118 @@ class UniversalPriceTracker:
                 return None
         return None
     
+    def _extract_bigbasket_price(self, url: str, headers: dict) -> Optional[float]:
+        """Extract price from BigBasket with pincode support"""
+        try:
+            # Extract product ID from URL
+            product_id = None
+            if '/p/' in url:
+                product_id = url.split('/p/')[-1].split('/')[0].split('?')[0]
+            
+            if not product_id:
+                return None
+                
+            # Use BigBasket's API to get pincode-specific pricing
+            api_url = f'https://www.bigbasket.com/product/v-0.0.3/price/{product_id}/?pincode={self.pincode}'
+            
+            api_headers = headers.copy()
+            api_headers.update({
+                'X-CSRFToken': 'null',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': url
+            })
+            
+            response = requests.get(api_url, headers=api_headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extract price from API response
+            if 'discounted_price' in data and data['discounted_price'] > 0:
+                return float(data['discounted_price'])
+            elif 'mrp' in data and data['mrp'] > 0:
+                return float(data['mrp'])
+                
+        except Exception as e:
+            print(f"Error fetching BigBasket price: {str(e)}")
+            
+        return None
+
+    def _extract_zepto_price(self, url: str, headers: dict) -> Optional[float]:
+        """Extract price from Zepto with pincode support"""
+        try:
+            # Extract product slug from URL
+            slug = url.strip('/').split('/')[-1].split('?')[0]
+            
+            # First, get store ID for the pincode
+            location_url = f'https://www.zeptonow.com/api/oms/v1/location/check-pincode?pincode={self.pincode}'
+            location_headers = headers.copy()
+            location_headers.update({
+                'X-Zepto-Platform': 'web',
+                'X-Zepto-Device-Id': 'web',
+                'X-Zepto-Platform-Version': '1.0.0'
+            })
+            
+            # Get location details
+            location_resp = requests.get(location_url, headers=location_headers, timeout=10)
+            location_resp.raise_for_status()
+            location_data = location_resp.json()
+            
+            if not location_data.get('success', False):
+                print("Zepto not available in this pincode")
+                return None
+                
+            # Get product details
+            product_url = f'https://www.zeptonow.com/api/oms/v1/products/{slug}?pincode={self.pincode}'
+            product_resp = requests.get(product_url, headers=location_headers, timeout=10)
+            product_resp.raise_for_status()
+            product_data = product_resp.json()
+            
+            # Extract price
+            if product_data.get('success', False) and 'data' in product_data:
+                price = product_data['data'].get('price', {}).get('price')
+                if price:
+                    return float(price)
+                    
+        except Exception as e:
+            print(f"Error fetching Zepto price: {str(e)}")
+            
+        return None
+
+    def _extract_blinkit_price(self, url: str, headers: dict) -> Optional[float]:
+        """Extract price from Blinkit with pincode support"""
+        try:
+            # Extract product ID from URL
+            product_id = url.strip('/').split('/')[-1].split('?')[0]
+            
+            # First, get store ID for the pincode
+            location_url = f'https://blinkit.com/api/v1/serviceability?pincode={self.pincode}'
+            
+            location_resp = requests.get(location_url, headers=headers, timeout=10)
+            location_resp.raise_for_status()
+            location_data = location_resp.json()
+            
+            store_id = location_data.get('data', {}).get('store_id')
+            if not store_id:
+                print("Blinkit not available in this pincode")
+                return None
+                
+            # Get product details
+            product_url = f'https://blinkit.com/api/v1/products/{product_id}?store_id={store_id}'
+            product_resp = requests.get(product_url, headers=headers, timeout=10)
+            product_resp.raise_for_status()
+            product_data = product_resp.json()
+            
+            # Extract price
+            if product_data.get('success', False) and 'data' in product_data:
+                price = product_data['data'].get('price')
+                if price:
+                    return float(price)
+                    
+        except Exception as e:
+            print(f"Error fetching Blinkit price: {str(e)}")
+            
+        return None
+
     def scrape_price_universal(self, url: str) -> Dict:
         """Universal price scraper - works with any e-commerce site"""
         headers = {
@@ -95,8 +244,26 @@ class UniversalPriceTracker:
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': 'https://www.google.com/'
         }
+        
+        # Check for pincode-requiring sites first
+        if self.pincode:
+            if 'bigbasket.com' in url:
+                price = self._extract_bigbasket_price(url, headers)
+                if price is not None:
+                    return {'price': price, 'currency': 'INR', 'method': 'bigbasket_api'}
+            
+            elif 'zeptonow.com' in url:
+                price = self._extract_zepto_price(url, headers)
+                if price is not None:
+                    return {'price': price, 'currency': 'INR', 'method': 'zepto_api'}
+            
+            elif 'blinkit.com' in url:
+                price = self._extract_blinkit_price(url, headers)
+                if price is not None:
+                    return {'price': price, 'currency': 'INR', 'method': 'blinkit_api'}
         
         try:
             response = requests.get(url, headers=headers, timeout=20)
@@ -372,7 +539,15 @@ def main():
     print("🌐 UNIVERSAL PRICE TRACKER")
     print("="*70)
     
-    tracker = UniversalPriceTracker()
+    # Load environment from .env if it exists
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    # Initialize with environment variables
+    tracker = UniversalPriceTracker(
+        config_file=os.getenv('CONFIG_FILE', 'price_tracker_config.json'),
+        pushbullet_token=os.getenv('PUSHBULLET_TOKEN', '')
+    )
     
     print(f"\n📊 Configuration:")
     print(f"   Products: {len(tracker.products)}")
