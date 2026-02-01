@@ -1,14 +1,5 @@
 {
-  "products": [
-    {
-      "url": "https://www.bigbasket.com/pd/40326186/the-whole-truth-cold-coffee-pro-whey-protein-powder-1-kg/?nc=cl-prod-list&t_pos_sec=1&t_pos_item=1&t_s=Cold+Coffee+24g+Whey+Protein+Powder",
-      "name": "The Whole Truth Cold Coffee 24g Whey Protein Powder, 1 kg",
-      "threshold": 2500,
-      "platform": "auto",
-      "notifications_enabled": true,
-      "added_date": "2026-02-01T15:40:15.864821"
-    }
-  ],
+  "products": [],
   "price_history": {},
   "notifications_enabled": true
 }

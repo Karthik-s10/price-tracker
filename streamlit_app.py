@@ -23,6 +23,32 @@ except ImportError:
 from price_tracker_universal import UniversalPriceTracker
 import time
 
+def pull_latest_config_from_github():
+    """Pull latest config from GitHub API"""
+    try:
+        token = os.getenv('GITHUB_TOKEN')
+        if not token:
+            return False, "GitHub token not found"
+        
+        url = 'https://api.github.com/repos/Karthik-s10/price-tracker/contents/price_tracker_config.json'
+        r = requests.get(url, headers={'Authorization': f'token {token}'})
+        
+        if r.status_code == 200:
+            data = r.json()
+            content = base64.b64decode(data['content']).decode('utf-8')
+            
+            # Save to local file
+            with open('price_tracker_config.json', 'w') as f:
+                f.write(content)
+            
+            # Reload tracker
+            st.cache_resource.clear()
+            return True, "Pulled latest config from GitHub"
+        else:
+            return False, f"Failed to fetch: {r.status_code}"
+    except Exception as e:
+        return False, str(e)
+
 # Page config
 st.set_page_config(
     page_title="Price Tracker Dashboard",
@@ -188,6 +214,16 @@ if page == "📊 Dashboard":
                     )
                     
                     if new_notif != notif_enabled:
+                        # Pull latest config from GitHub first
+                        with st.spinner("🔄 Syncing with GitHub..."):
+                            success, message = pull_latest_config_from_github()
+                            if success:
+                                st.success(message)
+                                # Reload tracker after pulling
+                                tracker = get_tracker()
+                            else:
+                                st.warning(f"Could not sync: {message}")
+                        
                         tracker.products[idx]['notifications_enabled'] = new_notif
                         tracker.save_config()
                         st.rerun()
@@ -201,6 +237,16 @@ if page == "📊 Dashboard":
                     # Delete button
                     if st.button("🗑️ Delete", key=f"del_{idx}"):
                         if st.session_state.get(f'confirm_del_{idx}', False):
+                            # Pull latest config from GitHub first
+                            with st.spinner("🔄 Syncing with GitHub..."):
+                                success, message = pull_latest_config_from_github()
+                                if success:
+                                    st.success(message)
+                                    # Reload tracker after pulling
+                                    tracker = get_tracker()
+                                else:
+                                    st.warning(f"Could not sync: {message}")
+                            
                             tracker.products.pop(idx)
                             tracker.save_config()
                             st.success("Product deleted!")
@@ -277,6 +323,16 @@ elif page == "➕ Add Product":
             elif not name:
                 st.error("❌ Please enter a product name")
             else:
+                # Pull latest config from GitHub first
+                with st.spinner("🔄 Syncing with GitHub..."):
+                    success, message = pull_latest_config_from_github()
+                    if success:
+                        st.success(message)
+                        # Reload tracker after pulling
+                        tracker = get_tracker()
+                    else:
+                        st.warning(f"Could not sync: {message}")
+                
                 # Add product
                 new_product = {
                     'url': url,
