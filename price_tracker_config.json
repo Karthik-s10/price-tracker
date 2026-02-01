@@ -1,5 +1,14 @@
 {
-  "products": [],
+  "products": [
+    {
+      "url": "https://www.zepto.com/pn/the-whole-truth-whey-protein-powder-pista-badaam-shake-24g-protein-per-scoop/pvid/b613b8a7-9457-4746-a6b5-6ce5346b5582",
+      "name": "The Whole Truth Whey Protein Powder Pista Badaam Shake (24g Protein Per Scoop)",
+      "threshold": 2500,
+      "platform": "auto",
+      "notifications_enabled": true,
+      "added_date": "2026-02-01T15:47:24.067715"
+    }
+  ],
   "price_history": {},
   "notifications_enabled": true
 }
