@@ -40,18 +40,11 @@ def pull_latest_config_from_github():
             with open('price_tracker_config.json', 'w') as f:
                 f.write(content)
             
-            # Reload tracker
-            st.cache_resource.clear()
             return True, "Pulled latest config from GitHub"
         else:
             return False, f"Failed to fetch: {r.status_code}"
     except Exception as e:
         return False, str(e)
-
-@st.cache_resource
-def get_tracker():
-    tracker = UniversalPriceTracker()
-    return tracker
 
 def main():
     # Page config
@@ -107,6 +100,11 @@ def main():
     load_dotenv()
 
     # Initialize tracker
+    @st.cache_resource
+    def get_tracker():
+        tracker = UniversalPriceTracker()
+        return tracker
+    
     tracker = get_tracker()
 
     # Sidebar
