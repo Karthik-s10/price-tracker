@@ -371,33 +371,42 @@ class UniversalPriceTracker:
     def scrape_with_selenium(self, url):
         """Scrape price using Selenium for any website"""
         options = Options()
-        options.add_argument('--headless')
+        options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
-        
-        # Use chromium-browser for GitHub Actions
-        options.binary_location = '/usr/bin/chromium-browser'
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-plugins')
+        options.add_argument('--disable-images')
+        options.add_argument('--disable-javascript')
+        options.add_argument('--disable-web-security')
+        options.add_argument('--allow-running-insecure-content')
         
         try:
+            # Try to initialize driver
+            print("🔧 Initializing Chrome driver...")
             driver = webdriver.Chrome(options=options)
+            print("✅ Chrome driver initialized successfully")
             
             # Set user agent
             driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-                "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             })
             
+            print(f"🌐 Loading URL: {url}")
             driver.get(url)
             
             # Wait for page to load
-            time.sleep(5)
+            time.sleep(3)
+            print("✅ Page loaded")
             
             # Try to find price using multiple selectors
             price = None
             currency = '₹'
             
             # Method 1: Try all price selectors
+            print("🔍 Searching for price using CSS selectors...")
             for selector in self.price_selectors:
                 if selector['type'] == 'css':
                     try:
@@ -406,11 +415,11 @@ class UniversalPriceTracker:
                             text = element.text.strip()
                             price = self.extract_price_from_text(text)
                             if price:
-                                print(f"✅ Found price via selector: {selector['selector']}")
+                                print(f"✅ Found price via selector: {selector['selector']} - ₹{price}")
                                 break
                         if price:
                             break
-                    except:
+                    except Exception as e:
                         continue
                 elif selector['type'] == 'meta':
                     try:
@@ -420,7 +429,7 @@ class UniversalPriceTracker:
                                 content = tag.get_attribute('content', '')
                                 price = self.extract_price_from_text(content)
                                 if price:
-                                    print(f"✅ Found price via meta: {selector['value']}")
+                                    print(f"✅ Found price via meta: {selector['value']} - ₹{price}")
                                     break
                         if price:
                             break
@@ -429,6 +438,7 @@ class UniversalPriceTracker:
             
             # Method 2: Look for price in page source
             if not price:
+                print("🔍 Searching for price in page source...")
                 page_source = driver.page_source
                 # Look for price patterns with currency symbols
                 price_patterns = [
@@ -438,6 +448,7 @@ class UniversalPriceTracker:
                     r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*Rs\.?',
                     r'"price":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
                     r'"currentPrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                    r'"salePrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
                 ]
                 
                 for pattern in price_patterns:
@@ -461,6 +472,7 @@ class UniversalPriceTracker:
             
             # Method 3: Try common price element IDs and classes
             if not price:
+                print("🔍 Searching for price using common selectors...")
                 common_selectors = [
                     "#price",
                     "#productPrice",
@@ -473,7 +485,12 @@ class UniversalPriceTracker:
                     "[data-price]",
                     "[data-testid*='price']",
                     "[class*='Price']",
-                    "[class*='price']"
+                    "[class*='price']",
+                    "span[class*='price']",
+                    "div[class*='price']",
+                    "h1[class*='price']",
+                    "h2[class*='price']",
+                    "h3[class*='price']",
                 ]
                 
                 for selector in common_selectors:
@@ -482,7 +499,7 @@ class UniversalPriceTracker:
                         text = element.text.strip()
                         price = self.extract_price_from_text(text)
                         if price:
-                            print(f"✅ Found price via common selector: {selector}")
+                            print(f"✅ Found price via common selector: {selector} - ₹{price}")
                             break
                     except:
                         continue
@@ -499,7 +516,9 @@ class UniversalPriceTracker:
                 driver.quit()
             except:
                 pass
-            return {'error': f'Selenium scraping error: {str(e)}', 'available': False}
+            error_msg = f'Selenium scraping error: {str(e)}'
+            print(f"❌ {error_msg}")
+            return {'error': error_msg, 'available': False}
     
     def check_product_price(self, product):
         """Check price for a single product using Selenium"""
