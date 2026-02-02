@@ -145,8 +145,11 @@ def main():
     """, unsafe_allow_html=True)
 
     # Load environment variables from .env file if it exists
-    from dotenv import load_dotenv
-    load_dotenv()
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass  # dotenv is optional
 
     # Initialize tracker
     tracker = get_tracker()
