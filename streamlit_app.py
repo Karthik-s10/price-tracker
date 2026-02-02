@@ -21,6 +21,7 @@ except ImportError:
     PLOTLY_AVAILABLE = False
 
 from price_tracker_universal import UniversalPriceTracker
+from token_manager import validate_tokens_for_streamlit
 
 # --- HELPER FUNCTIONS ---
 
@@ -157,6 +158,25 @@ def main():
     # Sidebar
     with st.sidebar:
         st.markdown("## 🎮 Control Panel")
+        
+        # Token Status Display
+        st.markdown("### 🔑 Token Status")
+        token_status = validate_tokens_for_streamlit()
+        
+        if token_status['all_valid']:
+            st.success("✅ All tokens configured")
+        else:
+            st.warning("⚠️ Token issues detected")
+        
+        # Show detailed token status
+        with st.expander("View Token Details"):
+            st.code(token_status['summary'], language=None)
+            
+            # Show missing required tokens
+            if token_status['missing_required']:
+                st.error(f"Missing required: {', '.join(token_status['missing_required'])}")
+        
+        st.markdown("---")
         
         # Pushbullet status
         if hasattr(tracker, 'pushbullet_token') and tracker.pushbullet_token:
