@@ -12,8 +12,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GH_TOKEN }}
 
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -27,17 +25,8 @@ jobs:
 
     - name: Validate tokens
       env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
       run: |
-        # Test GitHub token
-        if [ -n "$GH_TOKEN" ]; then
-          echo "✅ GitHub token found"
-          curl -s -H "Authorization: token $GH_TOKEN" https://api.github.com/user | jq -r '.login' && echo "GitHub token valid" || echo "GitHub token invalid"
-        else
-          echo "❌ GitHub token missing"
-        fi
-        
         # Test Pushbullet token
         if [ -n "$PUSHBULLET_TOKEN" ]; then
           echo "✅ Pushbullet token found"
@@ -48,7 +37,6 @@ jobs:
 
     - name: Run price tracker with Safety Check
       env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
       run: |
         # 1. Create backup of current config
