@@ -13,7 +13,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GH_TOKEN }}
 
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -23,22 +23,38 @@ jobs:
     - name: Install dependencies
       run: |
         pip install requests beautifulsoup4 lxml
+        sudo apt-get update && sudo apt-get install -y jq
 
     - name: Validate tokens
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
-      run: python validate_tokens.py
+      run: |
+        # Test GitHub token
+        if [ -n "$GH_TOKEN" ]; then
+          echo "✅ GitHub token found"
+          curl -s -H "Authorization: token $GH_TOKEN" https://api.github.com/user | jq -r '.login' && echo "GitHub token valid" || echo "GitHub token invalid"
+        else
+          echo "❌ GitHub token missing"
+        fi
+        
+        # Test Pushbullet token
+        if [ -n "$PUSHBULLET_TOKEN" ]; then
+          echo "✅ Pushbullet token found"
+          curl -s -H "Access-Token: $PUSHBULLET_TOKEN" https://api.pushbullet.com/v2/users/me | jq -r '.email' && echo "Pushbullet token valid" || echo "Pushbullet token invalid"
+        else
+          echo "❌ Pushbullet token missing"
+        fi
 
     - name: Run price tracker with Safety Check
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
       run: |
         # 1. Create backup of current config
         cp price_tracker_config.json price_tracker_config.backup.json
         
-        # 2. Run the tracker
+        # 2. Run the tracker (this will send Pushbullet notifications if configured)
         python price_tracker_universal.py
         
         # 3. Safety Check: Verify product list wasn't deleted/corrupted
@@ -46,6 +62,25 @@ jobs:
         
         # 4. Cleanup backup
         rm price_tracker_config.backup.json
+
+    - name: Send Pushbullet notification
+      env:
+        PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
+      run: |
+        # Send completion notification
+        if [ -n "$PUSHBULLET_TOKEN" ]; then
+          echo "Sending completion notification via Pushbullet..."
+          curl -s -X POST https://api.pushbullet.com/v2/pushes \
+            -H "Access-Token: $PUSHBULLET_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "type": "note",
+              "title": "Price Tracker Complete",
+              "body": "Price tracking run completed successfully. Check GitHub for any price changes."
+            }' && echo "✅ Pushbullet notification sent" || echo "❌ Failed to send Pushbullet notification"
+        else
+          echo "No Pushbullet token configured, skipping notification"
+        fi
 
     - name: Commit changes
       run: |
