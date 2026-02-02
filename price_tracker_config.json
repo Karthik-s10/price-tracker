@@ -1,13 +1,6 @@
 {
   "products": [],
   "price_history": {
-    "https://www.bigbasket.com/pd/40326185/the-whole-truth-light-cocoa-pro-whey-protein-powder-1-kg/": [
-      {
-        "price": 2661.0,
-        "timestamp": "2026-02-02T06:40:31.379810",
-        "method": "currency_pattern"
-      }
-    ]
   },
   "notifications_enabled": true,
   "pincode": "560102"
