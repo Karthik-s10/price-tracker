@@ -378,18 +378,21 @@ class UniversalPriceTracker:
         options.add_argument('--window-size=1920,1080')
         options.add_argument('--disable-extensions')
         options.add_argument('--disable-plugins')
-        options.add_argument('--disable-images')
-        options.add_argument('--disable-javascript')
         options.add_argument('--disable-web-security')
         options.add_argument('--allow-running-insecure-content')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
         
         try:
             # Try to initialize driver
             print("🔧 Initializing Chrome driver...")
             driver = webdriver.Chrome(options=options)
-            print("✅ Chrome driver initialized successfully")
             
-            # Set user agent
+            # Hide webdriver signature
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
+            # Set realistic user agent
             driver.execute_cdp_cmd('Network.setUserAgentOverride', {
                 "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             })
@@ -398,7 +401,7 @@ class UniversalPriceTracker:
             driver.get(url)
             
             # Wait for page to load
-            time.sleep(3)
+            time.sleep(5)
             print("✅ Page loaded")
             
             # Try to find price using multiple selectors
@@ -449,6 +452,10 @@ class UniversalPriceTracker:
                     r'"price":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
                     r'"currentPrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
                     r'"salePrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                    r'data-asin-price="([^"]+)"',
+                    r'data-price="([^"]+)"',
+                    r'priceWhole["\s:]+["\s]*(\d+(?:,\d{3})*)',
+                    r'priceFraction["\s:]+["\s]*(\d+)',
                 ]
                 
                 for pattern in price_patterns:
@@ -491,6 +498,11 @@ class UniversalPriceTracker:
                     "h1[class*='price']",
                     "h2[class*='price']",
                     "h3[class*='price']",
+                    ".a-price-whole",
+                    ".a-price-fraction",
+                    ".a-offscreen",
+                    "[id*='price']",
+                    "[aria-label*='price']",
                 ]
                 
                 for selector in common_selectors:
