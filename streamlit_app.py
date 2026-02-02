@@ -77,12 +77,25 @@ def main():
         st.sidebar.info("📱 Pushbullet: Not Configured")
 
     # Navigation
-    page = st.sidebar.selectbox("Navigate", [
-        "📊 Dashboard", 
-        "➕ Add Product", 
-        "📈 Price History", 
-        "⚙️ Settings"
-    ])
+    page = st.radio(
+        "Navigate",
+        ["📊 Dashboard", "➕ Add Product", "📈 Price History", "⚙️ Settings"]
+    )
+    
+    st.markdown("---")
+    
+    # Pincode Input
+    st.markdown("### 📍 Delivery Pincode")
+    current_pincode = getattr(tracker, 'pincode', '')
+    pincode = st.text_input("Enter your pincode", value=current_pincode or "", max_chars=6, key="pincode_input")
+    
+    # Update pincode if changed
+    if pincode and pincode != current_pincode:
+        tracker.pincode = pincode
+        if hasattr(tracker, 'save_config'):
+            tracker.save_config()
+        st.success("Pincode updated!")
+        st.rerun()
 
     # Dashboard
     if page == "📊 Dashboard":
@@ -192,11 +205,11 @@ def main():
         
         # Location
         st.markdown("### 📍 Location")
-        pincode = st.text_input("Pincode", value=getattr(tracker, 'pincode', ''))
-        if st.button("Save Pincode"):
-            tracker.pincode = pincode
-            tracker.save_config()
-            st.success("Pincode saved!")
+        current_pincode = getattr(tracker, 'pincode', '')
+        if current_pincode:
+            st.info(f"Current Pincode: {current_pincode}")
+        else:
+            st.info("Pincode not set. Set it in the sidebar.")
         
         # Pushbullet
         st.markdown("### 📱 Pushbullet")
