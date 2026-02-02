@@ -1,0 +1,77 @@
+﻿name: Price Tracker
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  track-prices:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout with full history
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure Git
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git config --global pull.rebase false
+
+    - name: Pull latest changes
+      run: |
+        git fetch origin main
+        git checkout main
+        git reset --hard origin/main
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run price tracker
+      id: price_tracker
+      env:
+        PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -e
+        
+        # Create backup
+        cp price_tracker_config.json price_tracker_config.backup.json
+        
+        # Run the price tracker
+        python price_tracker_universal.py
+        
+        # Check if there are changes
+        if [ -n "$(git diff --name-only price_tracker_config.json)" ]; then
+          # Validate products weren't modified
+          python validate_products.py
+          echo "price_updated=true" >> $GITHUB_OUTPUT
+        else
+          echo "No price changes detected"
+        fi
+        
+        # Clean up
+        rm price_tracker_config.backup.json
+
+    - name: Commit and push price updates
+      if: steps.price_tracker.outputs.price_updated == 'true'
+      run: |
+        git add price_tracker_config.json
+        git commit -m "Update price history [skip ci]"
+        git pull --rebase
+        if ! git push; then
+          echo "Push failed - concurrent changes detected"
+          exit 0
+        fi
+
