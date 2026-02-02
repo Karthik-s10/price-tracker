@@ -201,7 +201,7 @@ class UniversalPriceTracker:
                             if price:
                                 break
                     if price:
-                    break
+                        break
             
             # Method 4: Look for price patterns in all text
             if not price:
@@ -368,20 +368,154 @@ class UniversalPriceTracker:
                 pass
             return {'error': f'Selenium error: {str(e)}', 'available': False}
     
+    def scrape_with_selenium(self, url):
+        """Scrape price using Selenium for any website"""
+        options = Options()
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        
+        # Use chromium-browser for GitHub Actions
+        options.binary_location = '/usr/bin/chromium-browser'
+        
+        try:
+            driver = webdriver.Chrome(options=options)
+            
+            # Set user agent
+            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
+            driver.get(url)
+            
+            # Wait for page to load
+            time.sleep(5)
+            
+            # Try to find price using multiple selectors
+            price = None
+            currency = '₹'
+            
+            # Method 1: Try all price selectors
+            for selector in self.price_selectors:
+                if selector['type'] == 'css':
+                    try:
+                        elements = driver.find_elements(By.CSS_SELECTOR, selector['selector'])
+                        for element in elements:
+                            text = element.text.strip()
+                            price = self.extract_price_from_text(text)
+                            if price:
+                                print(f"✅ Found price via selector: {selector['selector']}")
+                                break
+                        if price:
+                            break
+                    except:
+                        continue
+                elif selector['type'] == 'meta':
+                    try:
+                        meta_tags = driver.find_elements(By.TAG_NAME, 'meta')
+                        for tag in meta_tags:
+                            if tag.get_attribute(selector['attr']) == selector['value']:
+                                content = tag.get_attribute('content', '')
+                                price = self.extract_price_from_text(content)
+                                if price:
+                                    print(f"✅ Found price via meta: {selector['value']}")
+                                    break
+                        if price:
+                            break
+                    except:
+                        continue
+            
+            # Method 2: Look for price in page source
+            if not price:
+                page_source = driver.page_source
+                # Look for price patterns with currency symbols
+                price_patterns = [
+                    r'₹\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
+                    r'Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
+                    r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*₹',
+                    r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*Rs\.?',
+                    r'"price":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                    r'"currentPrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                ]
+                
+                for pattern in price_patterns:
+                    matches = re.findall(pattern, page_source, re.IGNORECASE)
+                    if matches:
+                        prices = []
+                        for p in matches:
+                            # Clean up the price string
+                            p = p.replace(',', '')
+                            try:
+                                price_val = float(p)
+                                if 1 < price_val < 100000:  # Reasonable price range
+                                    prices.append(price_val)
+                            except:
+                                continue
+                        
+                        if prices:
+                            price = min(prices)  # Take lowest reasonable price
+                            print(f"✅ Found price via pattern matching: ₹{price}")
+                            break
+            
+            # Method 3: Try common price element IDs and classes
+            if not price:
+                common_selectors = [
+                    "#price",
+                    "#productPrice",
+                    "#salePrice",
+                    "#currentPrice",
+                    ".price",
+                    ".product-price",
+                    ".sale-price",
+                    ".current-price",
+                    "[data-price]",
+                    "[data-testid*='price']",
+                    "[class*='Price']",
+                    "[class*='price']"
+                ]
+                
+                for selector in common_selectors:
+                    try:
+                        element = driver.find_element(By.CSS_SELECTOR, selector)
+                        text = element.text.strip()
+                        price = self.extract_price_from_text(text)
+                        if price:
+                            print(f"✅ Found price via common selector: {selector}")
+                            break
+                    except:
+                        continue
+            
+            driver.quit()
+            
+            if price:
+                return {'price': price, 'currency': currency, 'available': True}
+            else:
+                return {'error': 'Price not found with Selenium', 'available': False}
+                
+        except Exception as e:
+            try:
+                driver.quit()
+            except:
+                pass
+            return {'error': f'Selenium scraping error: {str(e)}', 'available': False}
+    
     def check_product_price(self, product):
-        """Check price for a single product"""
+        """Check price for a single product using Selenium"""
         url = product['url']
         name = product['name']
         
         print(f"\n🔍 Checking: {name}")
         print(f"📍 URL: {url}")
         
-        # Check if this is BigBasket and we have a pincode
+        # Always use Selenium for consistency in GitHub Actions
         if 'bigbasket.com' in url.lower() and hasattr(self, 'pincode') and self.pincode:
             print(f"🏪 BigBasket detected, using pincode: {self.pincode}")
             result = self.scrape_bigbasket_with_pincode(url, self.pincode)
         else:
-            result = self.scrape_price_universal(url)
+            print(f"🌐 Using Selenium for price extraction")
+            result = self.scrape_with_selenium(url)
         
         if 'error' in result:
             print(f"❌ Error: {result['error']}")
