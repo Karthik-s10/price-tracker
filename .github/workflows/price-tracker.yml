@@ -2,8 +2,8 @@ name: Price Tracker
 
 on:
   schedule:
-    - cron: '*/20 * * * *'  # Runs every 20 minutes
-  workflow_dispatch:  # Allows manual triggering
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
 
 jobs:
   track-prices:
@@ -13,7 +13,7 @@ jobs:
     - name: Checkout with full history
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Fetch all history for proper merging
+        fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Configure Git
@@ -22,7 +22,7 @@ jobs:
         git config --global user.email 'actions@github.com'
         git config --global pull.rebase false
 
-    - name: Pull latest changes with rebase
+    - name: Pull latest changes
       run: |
         git fetch origin main
         git checkout main
@@ -38,57 +38,39 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run price tracker safely
+    - name: Run price tracker
       id: price_tracker
       env:
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set -e  # Exit immediately if a command exits with a non-zero status
+        set -e
         
-        # Create backup of current config
+        # Create backup
         cp price_tracker_config.json price_tracker_config.backup.json
         
         # Run the price tracker
-        if ! python price_tracker_universal.py; then
-          echo "Price tracker failed, restoring backup"
-          mv price_tracker_config.backup.json price_tracker_config.json
-          exit 1
-        fi
+        python price_tracker_universal.py
         
-        # Only proceed if there are changes to price history
+        # Check if there are changes
         if [ -n "$(git diff --name-only price_tracker_config.json)" ]; then
-          # Verify the product list wasn't modified
-          if ! python -c "
-import json, sys
-with open('price_tracker_config.json') as f1, open('price_tracker_config.backup.json') as f2:
-    new = json.load(f1)
-    old = json.load(f2)
-    if new['products'] != old['products']:
-        print('Error: Product list was modified by price tracker')
-        sys.exit(1)
-          "; then
-            echo "Error: Product list was modified by price tracker"
-            mv price_tracker_config.backup.json price_tracker_config.json
-            exit 1
-          fi
-          
+          # Validate products weren't modified
+          python validate_products.py
           echo "price_updated=true" >> $GITHUB_OUTPUT
         else
           echo "No price changes detected"
         fi
         
-        # Clean up backup
+        # Clean up
         rm price_tracker_config.backup.json
 
     - name: Commit and push price updates
       if: steps.price_tracker.outputs.price_updated == 'true'
       run: |
         git add price_tracker_config.json
-        git commit -m "📈 Update price history [skip ci]"
-        git pull --rebase  # Get any new changes that might have happened
+        git commit -m "Update price history [skip ci]"
+        git pull --rebase
         if ! git push; then
-          echo "Push failed, likely due to concurrent changes"
-          echo "This is normal if you're making changes in the Streamlit app"
-          exit 0  # Don't fail the workflow for concurrent changes
+          echo "Push failed - concurrent changes detected"
+          exit 0
         fi
