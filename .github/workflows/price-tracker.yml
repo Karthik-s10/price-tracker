@@ -2,10 +2,7 @@ name: Price Tracker
 
 on:
   schedule:
-    # Runs every 20 minutes
     - cron: '*/20 * * * *'
-  
-  # Allows manual triggering from Actions tab
   workflow_dispatch:
 
 jobs:
@@ -13,47 +10,37 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }} 
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set up Python
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        
+
     - name: Install dependencies
       run: |
         pip install requests beautifulsoup4 lxml
-        
-    - name: Run price tracker safely
+
+    - name: Run price tracker
       env:
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
       run: |
-        # Backup current config
         cp price_tracker_config.json price_tracker_config.backup.json
-        
-        # Run the tracker script
         python price_tracker_universal.py
-        
-        # Safety check
         python safety_check.py
-        
-        # Clean up backup
         rm price_tracker_config.backup.json
 
-    - name: Commit and push if safe
+    - name: Commit changes
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions"
         git add price_tracker_config.json
-        
-        # Only commit if there are changes
         if git diff --staged --quiet; then
-          echo "No price changes to save."
+          echo "No changes to commit"
         else
-          git commit -m "Update price history [skip ci]"
+          git commit -m "Update prices [skip ci]"
           git push
         fi
