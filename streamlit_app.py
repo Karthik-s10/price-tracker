@@ -408,25 +408,179 @@ def main():
                     df['timestamp'] = pd.to_datetime(df['timestamp'])
                     st.line_chart(df.set_index('timestamp')['price'])
                     st.dataframe(df)
-                else:
                     st.info("No price history available for this product.")
             except StopIteration:
                 st.error("Product not found.")
 
     elif page == "⚙️ Settings":
         st.markdown('<h1 class="main-header">⚙️ Settings</h1>', unsafe_allow_html=True)
-        # (Settings page logic)
-        st.write("Current Configuration:")
+        
+        # Global settings
+        st.markdown("### 🌐 Global Settings")
+        
+        with st.form("global_settings"):
+            global_notif = st.toggle(
+                "🔔 Enable all notifications",
+                value=getattr(tracker, 'notifications_enabled', True),
+                help="Master switch for all notifications"
+            )
+            
+            st.markdown("---")
+            st.markdown("### 📍 Location Settings")
+            
+            # Get current pincode from config
+            current_pincode = getattr(tracker, 'pincode', '560102')
+            
+            new_pincode = st.text_input(
+                "📍 Pincode for price checking",
+                value=current_pincode,
+                max_chars=6,
+                help="Enter your 6-digit pincode to get accurate local prices for quick commerce apps (Zepto, Blinkit, BigBasket)",
+                placeholder="e.g., 560102"
+            )
+            
+            # Validate pincode format
+            if new_pincode and (not new_pincode.isdigit() or len(new_pincode) != 6):
+                st.error("⚠️ Please enter a valid 6-digit pincode")
+            
+            st.markdown("---")
+            st.markdown("### 📱 Pushbullet Configuration")
+            
+            if hasattr(tracker, 'pushbullet_token') and tracker.pushbullet_token:
+                st.success("✅ Pushbullet is configured")
+                st.code(f"Token: {tracker.pushbullet_token[:20]}...")
+            else:
+                st.warning("⚠️ Pushbullet not configured")
+                st.markdown("""
+                To receive notifications on your phone:
+                
+                1. Install Pushbullet app
+                   - Android: [Play Store](https://play.google.com/store/apps/details?id=com.pushbullet.android)
+                   - iOS: [App Store](https://apps.apple.com/app/pushbullet/id810352052)
+                
+                2. Get your Access Token:
+                   - Go to https://www.pushbullet.com/#settings/account
+                   - Click "Create Access Token"
+                   - Copy the token
+                
+                3. Set environment variable:
+                ```bash
+                export PUSHBULLET_TOKEN="your-token-here"
+                ```
+                
+                4. Restart the Streamlit app
+                """)
+            
+            if st.form_submit_button("💾 Save Settings"):
+                # Validate pincode before saving
+                if new_pincode and (not new_pincode.isdigit() or len(new_pincode) != 6):
+                    st.error("⚠️ Please fix the pincode format before saving")
+                else:
+                    tracker.notifications_enabled = global_notif
+                    
+                    # Update pincode in config
+                    if hasattr(tracker, 'pincode') or new_pincode:
+                        tracker.pincode = new_pincode
+                    
+                    if hasattr(tracker, 'save_config'):
+                        tracker.save_config()
+                    st.success("✅ Settings saved!")
+                    st.rerun()
+        
+        st.markdown("---")
+        
+        # Bulk actions
+        st.markdown("### 🔧 Bulk Actions")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔔 Enable All Product Notifications", use_container_width=True):
+                for product in tracker.products:
+                    product['notifications_enabled'] = True
+                if hasattr(tracker, 'save_config'):
+                    tracker.save_config()
+                    push_config_to_github("Enabled all notifications")
+                st.success("✅ All notifications enabled!")
+                st.rerun()
+        
+        with col2:
+            if st.button("🔕 Disable All Product Notifications", use_container_width=True):
+                for product in tracker.products:
+                    product['notifications_enabled'] = False
+                if hasattr(tracker, 'save_config'):
+                    tracker.save_config()
+                    push_config_to_github("Disabled all notifications")
+                st.success("✅ All notifications disabled!")
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Export/Import
+        st.markdown("### 💾 Backup & Restore")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📥 Export Configuration", use_container_width=True):
+                config = {
+                    'products': tracker.products,
+                    'price_history': tracker.price_history,
+                    'notifications_enabled': getattr(tracker, 'notifications_enabled', True),
+                    'pincode': getattr(tracker, 'pincode', '560102')
+                }
+                st.download_button(
+                    label="⬇️ Download Config File",
+                    data=json.dumps(config, indent=2),
+                    file_name="price_tracker_backup.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+        
+        with col2:
+            uploaded_file = st.file_uploader("📤 Import Configuration", type=['json'])
+            if uploaded_file is not None:
+                try:
+                    config = json.load(uploaded_file)
+                    tracker.products = config.get('products', [])
+                    tracker.price_history = config.get('price_history', {})
+                    tracker.notifications_enabled = config.get('notifications_enabled', True)
+                    if 'pincode' in config:
+                        tracker.pincode = config['pincode']
+                    if hasattr(tracker, 'save_config'):
+                        tracker.save_config()
+                        push_config_to_github("Imported configuration")
+                    st.success("✅ Configuration imported and synced to GitHub!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error importing: {e}")
+        
+        st.markdown("---")
+        
+        # Current configuration display
+        st.markdown("### 📊 Current Configuration")
         st.json({
             "Pincode": getattr(tracker, 'pincode', 'Not Set'),
             "Notifications": getattr(tracker, 'notifications_enabled', True),
-            "Product Count": len(tracker.products)
+            "Product Count": len(tracker.products),
+            "Pushbullet": "Configured" if (hasattr(tracker, 'pushbullet_token') and tracker.pushbullet_token) else "Not Configured"
         })
         
-        if st.button("💾 Force Save to GitHub"):
+        if st.button("💾 Force Save to GitHub", use_container_width=True):
              success, msg = push_config_to_github("Manual force save")
-             if success: st.success(msg)
-             else: st.error(msg)
+             if success: 
+                 st.success(msg)
+             else: 
+                 st.error(msg)
+
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #718096; padding: 2rem;'>
+        <p>🛒 Price Tracker Dashboard | Made with ❤️ using Streamlit</p>
+        <p>Track prices from Amazon, Flipkart, Myntra, Nykaa, BigBasket, Zepto & more!</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
