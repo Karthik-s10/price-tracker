@@ -77,17 +77,59 @@ def main():
         st.sidebar.info("📱 Pushbullet: Not Configured")
 
     # Navigation
-    page = st.radio(
+    page = st.sidebar.selectbox(
         "Navigate",
         ["📊 Dashboard", "➕ Add Product", "📈 Price History", "⚙️ Settings"]
     )
     
-    st.markdown("---")
+    st.sidebar.markdown("---")
+    
+    # Check Price Now Button
+    if st.sidebar.button("🔄 Check Price Now", use_container_width=True):
+        if tracker.products:
+            with st.spinner("Checking prices..."):
+                # Check prices for all products
+                price_changes = []
+                for product in tracker.products:
+                    price = tracker.check_product_price(product)
+                    if price:
+                        product['current_price'] = price
+                        product['last_checked'] = datetime.now().isoformat()
+                        
+                        # Update price history
+                        if product['name'] not in tracker.price_history:
+                            tracker.price_history[product['name']] = []
+                        
+                        tracker.price_history[product['name']].append({
+                            'price': price,
+                            'date': datetime.now().isoformat()
+                        })
+                        
+                        # Check for price changes
+                        target_price = product.get('target_price')
+                        if target_price and price <= target_price:
+                            price_changes.append(f"🎯 {product['name']}: ₹{price} (Target: ₹{target_price})")
+                
+                # Save updated configuration
+                tracker.save_config()
+                
+                if price_changes:
+                    st.sidebar.success(f"Found {len(price_changes)} price changes!")
+                    for change in price_changes:
+                        st.sidebar.info(change)
+                else:
+                    st.sidebar.success("Prices updated successfully!")
+                
+                st.rerun()
+        else:
+            st.sidebar.warning("No products to check!")
+    
+    st.sidebar.markdown("---")
     
     # Pincode Input
-    st.markdown("### 📍 Delivery Pincode")
+    st.sidebar.markdown("### 📍 Delivery Pincode")
     current_pincode = getattr(tracker, 'pincode', '')
-    pincode = st.text_input("Enter your pincode", value=current_pincode or "", max_chars=6, key="pincode_input")
+    pincode = st.sidebar.text_input("Enter your pincode", value=current_pincode or "", max_chars=6, key="pincode_input")
     
     # Update pincode if changed
     if pincode and pincode != current_pincode:
@@ -121,17 +163,41 @@ def main():
         else:
             for product in tracker.products:
                 with st.container():
-                    col1, col2, col3 = st.columns([3, 1, 1])
+                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
                     with col1:
                         st.markdown(f"**{product['name']}**")
                         st.markdown(f"[View Product]({product['url']})")
+                        if product.get('last_checked'):
+                            st.caption(f"Last checked: {product['last_checked'][:16]}")
                     with col2:
                         if product['current_price']:
                             st.success(f"₹{product['current_price']}")
                         else:
                             st.warning("Not checked")
                     with col3:
-                        if st.button("🗑️", key=f"delete_{product['name']}"):
+                        if st.button("🔄", key=f"check_{product['name']}", help="Check Price Now"):
+                            with st.spinner(f"Checking {product['name']}..."):
+                                price = tracker.check_product_price(product)
+                                if price:
+                                    product['current_price'] = price
+                                    product['last_checked'] = datetime.now().isoformat()
+                                    
+                                    # Update price history
+                                    if product['name'] not in tracker.price_history:
+                                        tracker.price_history[product['name']] = []
+                                    
+                                    tracker.price_history[product['name']].append({
+                                        'price': price,
+                                        'date': datetime.now().isoformat()
+                                    })
+                                    
+                                    tracker.save_config()
+                                    st.success(f"Updated: ₹{price}")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to get price")
+                    with col4:
+                        if st.button("🗑️", key=f"delete_{product['name']}", help="Delete Product"):
                             tracker.products.remove(product)
                             tracker.save_config()
                             st.rerun()
