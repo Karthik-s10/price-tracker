@@ -236,137 +236,166 @@ class UniversalPriceTracker:
     def scrape_bigbasket_with_pincode(self, url, pincode):
         """Scrape BigBasket with pincode using Selenium"""
         options = Options()
-        options.add_argument('--headless')
+        options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
-        
-        # Use chromium-browser for GitHub Actions
-        options.binary_location = '/usr/bin/chromium-browser'
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-plugins')
+        options.add_argument('--disable-web-security')
+        options.add_argument('--allow-running-insecure-content')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
         
         try:
+            # Try to initialize driver
+            print("🔧 Initializing Chrome driver...")
             driver = webdriver.Chrome(options=options)
             
+            # Hide webdriver signature
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
+            # Set realistic user agent
+            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
+            
+            print(f"🌐 Loading URL: {url}")
             driver.get(url)
             
             # Wait for page to load
-            time.sleep(3)
+            time.sleep(5)
+            print("✅ Page loaded")
             
-            # Try to find and click location/change button
-            location_selectors = [
-                "//button[contains(text(),'Change')]",
-                "//button[contains(text(),'Select Location')]",
-                "//div[contains(text(),'Change')]",
-                "//span[contains(text(),'Change')]",
-                "//a[contains(text(),'Change')]",
-                "//button[contains(@class,'location')]",
-                "//div[contains(@class,'location')]"
-            ]
+            # Try to find price using multiple selectors
+            price = None
+            currency = '₹'
             
-            location_clicked = False
-            for selector in location_selectors:
-                try:
-                    location_btn = WebDriverWait(driver, 5).until(
-                        EC.element_to_be_clickable((By.XPATH, selector))
-                    )
-                    location_btn.click()
-                    location_clicked = True
-                    break
-                except:
-                    continue
-            
-            if not location_clicked:
-                # Try to find pincode input directly
-                pass
-            
-            # Look for pincode input
-            pincode_selectors = [
-                "//input[@id='pincode']",
-                "//input[@name='pincode']",
-                "//input[@placeholder='pincode']",
-                "//input[contains(@placeholder,'Pincode')]",
-                "//input[contains(@placeholder,'PIN')]",
-                "//input[@type='number']",
-                "//input[contains(@class,'pincode')]"
-            ]
-            
-            pincode_entered = False
-            for selector in pincode_selectors:
-                try:
-                    pincode_input = WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.XPATH, selector))
-                    )
-                    pincode_input.clear()
-                    pincode_input.send_keys(pincode)
-                    pincode_entered = True
-                    break
-                except:
-                    continue
-            
-            # Submit pincode
-            if pincode_entered:
-                submit_selectors = [
-                    "//button[contains(text(),'Check')]",
-                    "//button[contains(text(),'Submit')]",
-                    "//button[contains(text(),'Apply')]",
-                    "//button[contains(text(),'Continue')]",
-                    "//button[@type='submit']",
-                    "//input[@type='submit']"
-                ]
-                
-                for selector in submit_selectors:
+            # Method 1: Try all price selectors
+            print("🔍 Searching for price using CSS selectors...")
+            for selector in self.price_selectors:
+                if selector['type'] == 'css':
                     try:
-                        submit_btn = WebDriverWait(driver, 5).until(
-                            EC.element_to_be_clickable((By.XPATH, selector))
-                        )
-                        submit_btn.click()
-                        break
+                        elements = driver.find_elements(By.CSS_SELECTOR, selector['selector'])
+                        for element in elements:
+                            text = element.text.strip()
+                            price = self.extract_price_from_text(text)
+                            if price:
+                                print(f"✅ Found price via selector: {selector['selector']} - ₹{price}")
+                                break
+                        if price:
+                            break
+                    except Exception as e:
+                        continue
+                elif selector['type'] == 'meta':
+                    try:
+                        meta_tags = driver.find_elements(By.TAG_NAME, 'meta')
+                        for tag in meta_tags:
+                            if tag.get_attribute(selector['attr']) == selector['value']:
+                                content = tag.get_attribute('content', '')
+                                price = self.extract_price_from_text(content)
+                                if price:
+                                    print(f"✅ Found price via meta: {selector['value']} - ₹{price}")
+                                    break
+                        if price:
+                            break
                     except:
                         continue
             
-            # Wait for price to update
-            time.sleep(5)
-            
-            # Try to find price
-            price_selectors = [
-                ".Pricing___StyledLabel-sc-pldi2d-1",
-                "[class*='Price']",
-                "[class*='price']",
-                ".price",
-                ".current-price",
-                ".product-price"
-            ]
-            
-            price = None
-            for selector in price_selectors:
-                try:
-                    price_elem = driver.find_element(By.CSS_SELECTOR, selector)
-                    price_text = price_elem.text
-                    price = self.extract_price_from_text(price_text)
-                    if price:
-                        break
-                except:
-                    continue
-            
+            # Method 2: Look for price in page source
             if not price:
-                # Try to get price from page source
+                print("🔍 Searching for price in page source...")
                 page_source = driver.page_source
-                price = self.extract_price_from_text(page_source)
+                # Look for price patterns with currency symbols
+                price_patterns = [
+                    r'₹\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
+                    r'Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
+                    r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*₹',
+                    r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*Rs\.?',
+                    r'"price":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                    r'"currentPrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                    r'"salePrice":\s*"?(\d+(?:,\d{3})*(?:\.\d{2})?)"?',
+                    r'data-asin-price="([^"]+)"',
+                    r'data-price="([^"]+)"',
+                    r'priceWhole["\s:]+["\s]*(\d+(?:,\d{3})*)',
+                    r'priceFraction["\s:]+["\s]*(\d+)',
+                ]
+                
+                for pattern in price_patterns:
+                    matches = re.findall(pattern, page_source, re.IGNORECASE)
+                    if matches:
+                        prices = []
+                        for p in matches:
+                            # Clean up the price string
+                            p = p.replace(',', '')
+                            try:
+                                price_val = float(p)
+                                if 1 < price_val < 100000:  # Reasonable price range
+                                    prices.append(price_val)
+                            except:
+                                continue
+                        
+                        if prices:
+                            price = min(prices)  # Take lowest reasonable price
+                            print(f"✅ Found price via pattern matching: ₹{price}")
+                            break
+            
+            # Method 3: Try common price element IDs and classes
+            if not price:
+                print("🔍 Searching for price using common selectors...")
+                common_selectors = [
+                    "#price",
+                    "#productPrice",
+                    "#salePrice",
+                    "#currentPrice",
+                    ".price",
+                    ".product-price",
+                    ".sale-price",
+                    ".current-price",
+                    "[data-price]",
+                    "[data-testid*='price']",
+                    "[class*='Price']",
+                    "[class*='price']",
+                    "span[class*='price']",
+                    "div[class*='price']",
+                    "h1[class*='price']",
+                    "h2[class*='price']",
+                    "h3[class*='price']",
+                    ".a-price-whole",
+                    ".a-price-fraction",
+                    ".a-offscreen",
+                    "[id*='price']",
+                    "[aria-label*='price']",
+                ]
+                
+                for selector in common_selectors:
+                    try:
+                        element = driver.find_element(By.CSS_SELECTOR, selector)
+                        text = element.text.strip()
+                        price = self.extract_price_from_text(text)
+                        if price:
+                            print(f"✅ Found price via common selector: {selector} - ₹{price}")
+                            break
+                    except:
+                        continue
             
             driver.quit()
             
             if price:
-                return {'price': price, 'currency': '₹', 'available': True}
+                return {'price': price, 'currency': currency, 'available': True}
             else:
-                return {'error': 'Price not found after pincode update', 'available': False}
+                return {'error': 'BigBasket price not found', 'available': False}
                 
         except Exception as e:
             try:
                 driver.quit()
             except:
                 pass
-            return {'error': f'Selenium error: {str(e)}', 'available': False}
+            error_msg = f'BigBasket scraping error: {str(e)}'
+            print(f"❌ {error_msg}")
+            return {'error': error_msg, 'available': False}
     
     def scrape_with_selenium(self, url):
         """Scrape price using Selenium for any website"""

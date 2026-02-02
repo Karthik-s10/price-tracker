@@ -11,11 +11,11 @@ def test_price_scraping():
     
     tracker = UniversalPriceTracker()
     
-    # Test with a simpler e-commerce site
+    # Test with different sites
     test_products = [
         {
-            'name': 'Flipkart Test',
-            'url': 'https://www.flipkart.com/apple-iphone-13-128-gb-starlight/p/itm8f4c44b91f32b1'
+            'name': 'BigBasket Protein Powder',
+            'url': 'https://www.bigbasket.com/pd/40326186/the-whole-truth-cold-coffee-pro-whey-protein-powder-1-kg/?nc=cl-prod-list&t_pos_sec=1&t_pos_item=7&t_s=Cold+Coffee+24g+Whey+Protein+Powder'
         },
         {
             'name': 'Simple HTML Test',
