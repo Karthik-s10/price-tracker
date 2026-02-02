@@ -27,10 +27,10 @@ from price_tracker_universal import UniversalPriceTracker
 def pull_latest_config_from_github():
     """Pull latest config from GitHub API"""
     try:
-        token = os.getenv('GITHUB_TOKEN')
+        token = os.getenv('GH_TOKEN')
         if not token:
             # If no token, just warn and continue (local mode)
-            print("Warning: GITHUB_TOKEN not found. Skipping pull.")
+            print("Warning: GH_TOKEN not found. Skipping pull.")
             return False, "GitHub token not found"
         
         url = 'https://api.github.com/repos/Karthik-s10/price-tracker/contents/price_tracker_config.json'
@@ -55,10 +55,10 @@ def pull_latest_config_from_github():
 def push_config_to_github(message="Update config from Streamlit"):
     """Push local config file to GitHub to save changes permanently"""
     try:
-        token = os.getenv('GITHUB_TOKEN')
+        token = os.getenv('GH_TOKEN')
         if not token:
-            print("Warning: GITHUB_TOKEN not found. Skipping push.")
-            return False, "GITHUB_TOKEN missing"
+            print("Warning: GH_TOKEN not found. Skipping push.")
+            return False, "GH_TOKEN missing"
         
         # Read local file
         with open('price_tracker_config.json', 'r', encoding='utf-8') as f:
