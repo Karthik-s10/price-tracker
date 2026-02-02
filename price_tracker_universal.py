@@ -56,7 +56,9 @@ class UniversalPriceTracker:
                 self.products = data.get('products', [])
                 self.price_history = data.get('price_history', {})
                 self.notifications_enabled = data.get('notifications_enabled', True)
+                self.pincode = data.get('pincode', '560102')  # Default pincode
         else:
+            self.pincode = '560102'  # Default pincode
             self.save_config()
     
     def save_config(self):
@@ -64,7 +66,8 @@ class UniversalPriceTracker:
         data = {
             'products': self.products,
             'price_history': self.price_history,
-            'notifications_enabled': self.notifications_enabled
+            'notifications_enabled': self.notifications_enabled,
+            'pincode': getattr(self, 'pincode', '560102')
         }
         with open(self.config_file, 'w') as f:
             json.dump(data, f, indent=2)
@@ -97,6 +100,14 @@ class UniversalPriceTracker:
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
         }
+        
+        # Add pincode for quick commerce sites
+        if 'zepto.com' in url:
+            headers['X-Pincode'] = getattr(self, 'pincode', '560102')
+        elif 'blinkit.com' in url or 'grofers.com' in url:
+            headers['X-Location'] = getattr(self, 'pincode', '560102')
+        elif 'bigbasket.com' in url:
+            headers['X-BB-Pincode'] = getattr(self, 'pincode', '560102')
         
         try:
             response = requests.get(url, headers=headers, timeout=20)

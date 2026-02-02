@@ -514,7 +514,25 @@ elif page == "⚙️ Settings":
         )
         
         st.markdown("---")
-        st.markdown("### 📱 Pushbullet Configuration")
+        st.markdown("### � Location Settings")
+        
+        # Get current pincode from config
+        current_pincode = getattr(tracker, 'pincode', '560102')
+        
+        new_pincode = st.text_input(
+            "📍 Pincode for price checking",
+            value=current_pincode,
+            max_chars=6,
+            help="Enter your 6-digit pincode to get accurate local prices for quick commerce apps (Zepto, Blinkit, BigBasket)",
+            placeholder="e.g., 560102"
+        )
+        
+        # Validate pincode format
+        if new_pincode and (not new_pincode.isdigit() or len(new_pincode) != 6):
+            st.error("⚠️ Please enter a valid 6-digit pincode")
+        
+        st.markdown("---")
+        st.markdown("### � Pushbullet Configuration")
         
         if tracker.pushbullet_token:
             st.success("✅ Pushbullet is configured")
@@ -542,10 +560,19 @@ elif page == "⚙️ Settings":
             """)
         
         if st.form_submit_button("💾 Save Settings"):
-            tracker.notifications_enabled = global_notif
-            tracker.save_config()
-            st.success("✅ Settings saved!")
-            st.rerun()
+            # Validate pincode before saving
+            if new_pincode and (not new_pincode.isdigit() or len(new_pincode) != 6):
+                st.error("⚠️ Please fix the pincode format before saving")
+            else:
+                tracker.notifications_enabled = global_notif
+                
+                # Update pincode in config
+                if hasattr(tracker, 'pincode') or new_pincode:
+                    tracker.pincode = new_pincode
+                
+                tracker.save_config()
+                st.success("✅ Settings saved!")
+                st.rerun()
     
     st.markdown("---")
     
