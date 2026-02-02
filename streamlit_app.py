@@ -27,18 +27,26 @@ from price_tracker_universal import UniversalPriceTracker
 
 def get_github_token():
     """Retrieve the GitHub token from environment variables or secrets."""
-    # Check standard environment variables first (handles local .env)
-    token = os.getenv('GH_TOKEN') or os.getenv('GITHUB_TOKEN')
+    token = None
+    source = "Unknown"
     
-    # If not found in env, check Streamlit secrets (handles Streamlit Cloud)
+    # Priority 1: Streamlit secrets (for Streamlit Cloud deployment)
+    try:
+        token = st.secrets["GH_TOKEN"]
+        source = "Streamlit secrets"
+    except (KeyError, FileNotFoundError):
+        pass
+    
+    # Priority 2: Environment variables (fallback for GitHub Actions)
     if not token:
-        try:
-            token = st.secrets["GH_TOKEN"]
-        except (KeyError, FileNotFoundError):
-            try:
-                token = st.secrets["GITHUB_TOKEN"]
-            except (KeyError, FileNotFoundError):
-                token = None
+        token = os.getenv('GH_TOKEN') or os.getenv('GITHUB_TOKEN')
+        if token:
+            source = "Environment variables"
+    
+    # Debug info (only show if token is found)
+    if token:
+        st.sidebar.caption(f"🔑 Token source: {source}")
+    
     return token
 
 def pull_latest_config_from_github():
@@ -180,19 +188,25 @@ def main():
         st.markdown("## 🎮 Control Panel")
         
         # Check token status (Real verification)
+        st.markdown("### 🔑 Token Status")
         token = get_github_token()
+        
         if token:
             try:
                 # Quick check if token works
                 r = requests.get('https://api.github.com/user', headers={'Authorization': f'token {token}'})
                 if r.status_code == 200:
+                    user_data = r.json()
                     st.success(f"✅ GitHub Connected")
+                    st.caption(f"👤 User: {user_data.get('login', 'unknown')}")
                 else:
                     st.error(f"❌ Token Invalid ({r.status_code})")
             except:
                  st.error("❌ Connection Check Failed")
         else:
              st.error("❌ GH_TOKEN Missing")
+             st.caption("☁️ Add GH_TOKEN to Streamlit secrets")
+             st.caption("🔗 Settings → Secrets in Streamlit Cloud")
         
         st.markdown("---")
         
