@@ -13,38 +13,37 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Checkout code
+    - name: Checkout code
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }} 
-        # Note: Using GITHUB_TOKEN is critical for pushing changes back
 
-    - name: 🐍 Set up Python
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    - name: 📦 Install dependencies
+    - name: Install dependencies
       run: |
         pip install requests beautifulsoup4 lxml
         
-    - name: 🔍 Run price tracker (Safely)
+    - name: Run price tracker safely
       env:
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
       run: |
-        # 1. Backup current config
+        # Backup current config
         cp price_tracker_config.json price_tracker_config.backup.json
         
-        # 2. Run the tracker script
+        # Run the tracker script
         python price_tracker_universal.py
         
-        # 3. Safety Check: Ensure product list wasn't modified (only prices)
+        # Safety check
         python safety_check.py
         
-        # 4. Clean up backup
+        # Clean up backup
         rm price_tracker_config.backup.json
 
-    - name: 💾 Commit and Push (If Safe)
+    - name: Commit and push if safe
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
@@ -55,6 +54,6 @@ jobs:
         if git diff --staged --quiet; then
           echo "No price changes to save."
         else
-          git commit -m "📊 Update price history [skip ci]"
+          git commit -m "Update price history [skip ci]"
           git push
         fi
