@@ -2,18 +2,32 @@ import os
 import sys
 import requests
 import json
+import streamlit as st
 from typing import Dict, Tuple, Optional
 
 class TokenManager:
-    """Manages and validates tokens across the project"""
+    """Manages and validates tokens across the application"""
     
     def __init__(self):
         self.tokens = {}
         self.validation_results = {}
     
     def get_token(self, token_name: str) -> Optional[str]:
-        """Get token from environment"""
-        return os.getenv(token_name)
+        """Get token from multiple sources with priority"""
+        # Priority 1: Streamlit secrets (for deployed app)
+        try:
+            token = st.secrets[token_name]
+            if token:
+                return token
+        except (KeyError, FileNotFoundError):
+            pass
+        
+        # Priority 2: Environment variables (for GitHub Actions/local)
+        token = os.getenv(token_name)
+        if token:
+            return token
+        
+        return None
     
     def validate_github_token(self, token: str) -> Tuple[bool, str]:
         """Validate GitHub token"""

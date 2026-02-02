@@ -28,9 +28,17 @@ from token_manager import validate_tokens_for_streamlit
 def pull_latest_config_from_github():
     """Pull latest config from GitHub API"""
     try:
-        token = os.getenv('GH_TOKEN')
+        # Use enhanced token detection (same as token_manager)
+        token = None
+        try:
+            token = st.secrets["GH_TOKEN"]
+        except (KeyError, FileNotFoundError):
+            pass
+        
         if not token:
-            # If no token, just warn and continue (local mode)
+            token = os.getenv('GH_TOKEN')
+        
+        if not token:
             print("Warning: GH_TOKEN not found. Skipping pull.")
             return False, "GitHub token not found"
         
@@ -56,7 +64,16 @@ def pull_latest_config_from_github():
 def push_config_to_github(message="Update config from Streamlit"):
     """Push local config file to GitHub to save changes permanently"""
     try:
-        token = os.getenv('GH_TOKEN')
+        # Use enhanced token detection (same as token_manager)
+        token = None
+        try:
+            token = st.secrets["GH_TOKEN"]
+        except (KeyError, FileNotFoundError):
+            pass
+        
+        if not token:
+            token = os.getenv('GH_TOKEN')
+        
         if not token:
             print("Warning: GH_TOKEN not found. Skipping push.")
             return False, "GH_TOKEN missing"
