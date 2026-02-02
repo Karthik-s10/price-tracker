@@ -42,6 +42,7 @@ jobs:
       id: price_tracker
       env:
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         set -e  # Exit immediately if a command exits with a non-zero status
         
@@ -84,7 +85,7 @@ with open('price_tracker_config.json') as f1, open('price_tracker_config.backup.
       if: steps.price_tracker.outputs.price_updated == 'true'
       run: |
         git add price_tracker_config.json
-        git commit -m " Update price history [skip ci]"
+        git commit -m "📈 Update price history [skip ci]"
         git pull --rebase  # Get any new changes that might have happened
         if ! git push; then
           echo "Push failed, likely due to concurrent changes"
