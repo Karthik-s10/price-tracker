@@ -1,14 +1,5 @@
 {
-  "products": [
-    {
-      "url": "https://www.bigbasket.com/pd/40326185/the-whole-truth-light-cocoa-pro-whey-protein-powder-1-kg/",
-      "name": "The Whole Truth Light Cocoa Pro Whey Protein Powder, 1 kg",
-      "threshold": 2500,
-      "platform": "auto",
-      "notifications_enabled": true,
-      "added_date": "2026-02-02T06:40:16.229806"
-    }
-  ],
+  "products": [],
   "price_history": {
     "https://www.bigbasket.com/pd/40326185/the-whole-truth-light-cocoa-pro-whey-protein-powder-1-kg/": [
       {
