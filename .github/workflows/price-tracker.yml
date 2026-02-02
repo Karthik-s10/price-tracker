@@ -18,9 +18,14 @@ jobs:
       with:
         python-version: '3.11'
 
+    - name: Install Chrome and ChromeDriver
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser chromium-chromedriver
+
     - name: Install dependencies
       run: |
-        pip install requests beautifulsoup4 lxml
+        pip install -r requirements.txt
         sudo apt-get update && sudo apt-get install -y jq
 
     - name: Validate tokens
