@@ -2,75 +2,79 @@ name: Price Tracker
 
 on:
   schedule:
+    # Runs every 20 minutes
     - cron: '*/20 * * * *'
+  
+  # Allows manual triggering from Actions tab
   workflow_dispatch:
 
 jobs:
   track-prices:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Checkout with full history
+    - name: 📥 Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }} 
+        # Note: Using GITHUB_TOKEN is critical for pushing changes back
 
-    - name: Configure Git
-      run: |
-        git config --global user.name 'GitHub Actions'
-        git config --global user.email 'actions@github.com'
-        git config --global pull.rebase false
-
-    - name: Pull latest changes
-      run: |
-        git fetch origin main
-        git checkout main
-        git reset --hard origin/main
-
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-
-    - name: Install dependencies
+        
+    - name: 📦 Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Run price tracker
-      id: price_tracker
+        pip install requests beautifulsoup4 lxml
+        
+    - name: 🔍 Run price tracker (Safely)
       env:
         PUSHBULLET_TOKEN: ${{ secrets.PUSHBULLET_TOKEN }}
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set -e
-        
-        # Create backup
+        # 1. Backup current config
         cp price_tracker_config.json price_tracker_config.backup.json
         
-        # Run the price tracker
+        # 2. Run the tracker script
         python price_tracker_universal.py
         
-        # Check if there are changes
-        if [ -n "$(git diff --name-only price_tracker_config.json)" ]; then
-          # Validate products weren't modified
-          python validate_products.py
-          echo "price_updated=true" >> $GITHUB_OUTPUT
-        else
-          echo "No price changes detected"
-        fi
+        # 3. Safety Check: Ensure product list wasn't modified (only prices)
+        python -c "
+import json, sys
+try:
+    with open('price_tracker_config.json', 'r') as f1, open('price_tracker_config.backup.json', 'r') as f2:
+        new_data = json.load(f1)
+        old_data = json.load(f2)
         
-        # Clean up
+        # Check if product count changed
+        if len(new_data['products']) != len(old_data['products']):
+            print('SAFETY ERROR: Product count changed. Aborting push.')
+            sys.exit(1)
+            
+        # Check if URLs changed (order matters)
+        for p1, p2 in zip(new_data['products'], old_data['products']):
+            if p1['url'] != p2['url']:
+                print('SAFETY ERROR: Product URLs changed. Aborting push.')
+                sys.exit(1)
+except Exception as e:
+    print(f'SAFETY CHECK FAILED: {e}')
+    sys.exit(1)
+"
+        
+        # 4. Clean up backup
         rm price_tracker_config.backup.json
 
-    - name: Commit and push price updates
-      if: steps.price_tracker.outputs.price_updated == 'true'
+    - name: 💾 Commit and Push (If Safe)
       run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
         git add price_tracker_config.json
-        git commit -m "Update price history [skip ci]"
-        git pull --rebase
-        if ! git push; then
-          echo "Push failed - concurrent changes detected"
-          exit 0
+        
+        # Only commit if there are changes
+        if git diff --staged --quiet; then
+          echo "No price changes to save."
+        else
+          git commit -m "📊 Update price history [skip ci]"
+          git push
         fi
