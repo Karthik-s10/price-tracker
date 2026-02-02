@@ -176,30 +176,51 @@ def main():
     with st.sidebar:
         st.markdown("## 🎮 Control Panel")
         
-        # Token Status Display
-        st.markdown("### 🔑 Token Status")
-        token_status = validate_tokens_for_streamlit()
+        st.markdown("### 🔌 System Health")
         
-        if token_status['all_valid']:
-            st.success("✅ All tokens configured")
-        else:
-            st.warning("⚠️ Token issues detected")
+        # 1. GitHub Token Check (Real API Test)
+        token = None
+        try:
+            token = st.secrets["GH_TOKEN"]
+        except (KeyError, FileNotFoundError):
+            pass
         
-        # Show detailed token status
-        with st.expander("View Token Details"):
-            st.code(token_status['summary'], language=None)
+        if not token:
+            token = os.getenv('GH_TOKEN')
             
-            # Show missing required tokens
-            if token_status['missing_required']:
-                st.error(f"Missing required: {', '.join(token_status['missing_required'])}")
-        
-        st.markdown("---")
-        
-        # Pushbullet status
-        if hasattr(tracker, 'pushbullet_token') and tracker.pushbullet_token:
-            st.success("✅ Pushbullet Connected")
+        if token:
+            try:
+                r = requests.get('https://api.github.com/user', headers={'Authorization': f'token {token}'})
+                if r.status_code == 200:
+                    st.success(f"✅ GitHub: Active ({r.json()['login']})")
+                else:
+                    st.error(f"❌ GitHub: Invalid Token ({r.status_code})")
+            except:
+                 st.error("❌ GitHub: Connection Failed")
         else:
-            st.warning("⚠️ Pushbullet Not Configured")
+             st.warning("⚠️ GitHub: Token Missing (Check Secrets)")
+
+        # 2. Pushbullet Token Check (Real API Test)
+        pb_token = None
+        try:
+            pb_token = st.secrets["PUSHBULLET_TOKEN"]
+        except (KeyError, FileNotFoundError):
+            pass
+        
+        if not pb_token:
+            pb_token = os.getenv("PUSHBULLET_TOKEN")
+
+        if pb_token:
+            try:
+                r = requests.get('https://api.pushbullet.com/v2/users/me', headers={'Access-Token': pb_token})
+                if r.status_code == 200:
+                    st.success(f"✅ Pushbullet: Active")
+                else:
+                    st.error(f"❌ Pushbullet: Invalid Token (401)")
+            except:
+                st.error("❌ Pushbullet: Connection Failed")
+        else:
+            st.info("ℹ️ Pushbullet: Not Configured (Optional)")
         
         st.markdown("---")
         
