@@ -26,16 +26,16 @@ class BigBasketLoginScraper:
         options = uc.ChromeOptions()
         
         # Basic stealth options
-        options.add_argument('--headless')  # Set to False for debugging
+        options.add_argument('--headless=False')  # Set to False to see browser
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
         
-        # Advanced anti-detection
+        # Advanced anti-detection (simplified)
         options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        options.add_experimental_option('useAutomationExtension', False)
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-plugins')
         
         # Random user agent
         user_agents = [
