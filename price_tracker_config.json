@@ -1,7 +1,14 @@
 {
-  "products": [],
-  "price_history": {
-  },
+  "products": [
+    {
+      "name": "The Whole Truth Cold Coffee Pro Whey Protein Powder 1 kg",
+      "url": "https://www.bigbasket.com/pd/40326186/the-whole-truth-cold-coffee-pro-whey-protein-powder-1-kg/",
+      "current_price": 2249,
+      "target_price": 2000,
+      "last_checked": null
+    }
+  ],
+  "price_history": {},
   "notifications_enabled": true,
   "pincode": "560102"
 }
